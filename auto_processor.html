@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>激光雕刻图像自动优化</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auto-processor-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .image-preview-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        
+        .preview-box {
+            flex: 1;
+            margin: 0 10px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .preview-box img, .preview-box canvas {
+            width: 100%;
+            height: auto;
+        }
+        
+        .analysis-panel {
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .histogram-container {
+            height: 150px;
+            margin: 15px 0;
+            background-color: #fff;
+            border: 1px solid #ddd;
+        }
+        
+        .parameter-display {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        
+        .parameter-item {
+            width: 33%;
+            margin-bottom: 10px;
+        }
+        
+        .action-buttons {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .action-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        #analyze-btn {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        #download-btn {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        #manual-edit-btn {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .material-selector {
+            margin: 20px 0;
+        }
+        
+        .material-selector select {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        
+        #image-type-result {
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .stats-display {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            width: 25%;
+            margin-bottom: 10px;
+        }
+        
+        /* 标签样式 */
+        .image-type-tag {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .tag-photo {
+            background-color: #3498db;
+        }
+        
+        .tag-cartoon {
+            background-color: #9b59b6;
+        }
+        
+        .tag-portrait {
+            background-color: #e74c3c;
+        }
+        
+        .tag-text {
+            background-color: #f39c12;
+        }
+        
+        /* 优化策略区域样式 */
+        .optimization-summary {
+            background-color: #e8f4fc;
+            border-radius: 5px;
+            padding: 12px 15px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        .optimization-summary h3 {
+            margin-top: 0;
+            color: #2980b9;
+        }
+        
+        .optimization-summary p {
+            margin-bottom: 0;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="auto-processor-container">
+        <header>
+            <h1>激光雕刻图像自动优化</h1>
+            <p>专为木材雕刻优化的图像自动处理工具</p>
+        </header>
+        
+        <div class="upload-section">
+            <h2>1. 上传图像</h2>
+            <input type="file" id="image-upload" accept="image/*">
+            <div class="settings-section">
+                <h3>材料设置</h3>
+                <div class="setting-option">
+                    <label for="material-type">材料类型：</label>
+                    <select id="material-type">
+                        <option value="wood" selected>木材</option>
+                        <option value="metal">金属</option>
+                        <option value="plastic">塑料</option>
+                        <option value="vinyl">乙烯基</option>
+                        <option value="paper">纸张</option>
+                        <option value="silicone">硅胶</option>
+                        <option value="rubber">橡胶</option>
+                        <option value="leather">皮革</option>
+                        <option value="stone">石材</option>
+                        <option value="screen-printing">丝网印刷</option>
+                        <option value="other">其他</option>
+                    </select>
+                    <label for="material-color">材料颜色：</label>
+                    <select id="material-color">
+                        <option value="light" selected>浅色材料</option>
+                        <option value="dark">深色材料</option>
+                    </select>
+                </div>
+                <div class="setting-option">
+                    <label for="laser-type">激光器类型：</label>
+                    <select id="laser-type">
+                        <option value="co2" selected>二氧化碳激光器</option>
+                        <option value="blue">蓝光激光器</option>
+                        <option value="red">红光激光器</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="image-preview-container">
+            <div class="preview-box">
+                <h3>原始图像</h3>
+                <div id="original-preview"></div>
+            </div>
+            <div class="preview-box">
+                <h3>优化后</h3>
+                <div id="processed-preview"></div>
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <button id="analyze-btn">分析并优化</button>
+            <button id="manual-edit-btn">手动微调</button>
+            <button id="download-btn">下载优化图像</button>
+        </div>
+        
+        <div class="analysis-panel">
+            <h2>图像分析结果</h2>
+            <div id="image-type-container">
+                <h3>检测到的图像类型：<span id="image-type-result">等待分析...</span></h3>
+            </div>
+            
+            <h3>直方图分析</h3>
+            <div class="histogram-container">
+                <canvas id="histogram-canvas"></canvas>
+            </div>
+            
+            <div class="stats-display">
+                <div class="stat-item">
+                    <strong>平均亮度：</strong> <span id="avg-brightness">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>对比度：</strong> <span id="contrast-value">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>暗区比例：</strong> <span id="dark-ratio">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>亮区比例：</strong> <span id="bright-ratio">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>边缘复杂度：</strong> <span id="edge-complexity">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>细节丰富度：</strong> <span id="detail-richness">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>平滑程度：</strong> <span id="smoothness">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>推荐雕刻深度：</strong> <span id="recommended-depth">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>直方图峰值数：</strong> <span id="histogram-peaks">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>主要峰值位置：</strong> <span id="peak-positions">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>黑白像素比例：</strong> <span id="bw-ratio">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>色彩单一性：</strong> <span id="color-simplicity">-</span>
+                </div>
+            </div>
+            
+            <div class="optimization-summary">
+                <h3>优化策略</h3>
+                <p id="optimization-summary">等待分析...</p>
+            </div>
+            
+            <h3>应用的最佳参数</h3>
+            <div class="parameter-display">
+                <div class="parameter-item">
+                    <strong>常规对比度：</strong> <span id="param-contrast">-</span>
+                </div>
+                <div class="parameter-item">
+                    <strong>伽马校正：</strong> <span id="param-gamma">-</span>
+                </div>
+                <div class="parameter-item">
+                    <strong>三次差值局部均衡：</strong> <span id="param-clahe">-</span>
+                </div>
+                <div class="parameter-item">
+                    <strong>清晰度：</strong> <span id="param-clarity">-</span>
+                </div>
+                <div class="parameter-item">
+                    <strong>全局亮度：</strong> <span id="param-brightness">-</span>
+                </div>
+                <div class="parameter-item">
+                    <strong>USM锐化：</strong> <span id="param-usm">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="auto_processor.js"></script>
+</body>
+</html> 

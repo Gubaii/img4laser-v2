@@ -1,0 +1,307 @@
+body {
+    font-family: sans-serif;
+    margin: 0;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.app-header {
+    background-color: #333;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.main-content {
+    display: flex;
+    flex-grow: 1;
+    padding: 15px;
+    gap: 15px;
+}
+
+.left-panel {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-width: 0;
+}
+
+.right-panel {
+    width: 320px;
+    flex-shrink: 0;
+    flex-grow: 0;
+    height: calc(100vh - 80px);
+    overflow-y: auto;
+}
+
+.controls-sticky-container {
+    position: sticky;
+    top: 15px; /* Sticky position below the main padding */
+    margin-bottom: 10px;
+}
+
+.image-workspace {
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    text-align: center; /* Center canvas if its display is block/inline-block */
+}
+
+.workspace-actions {
+    display: flex;
+    justify-content: center; /* Center items horizontally */
+    align-items: center;
+    gap: 10px; /* Space between upload and compare button */
+    margin-bottom: 10px; /* Space below actions */
+}
+
+#compare-button {
+    padding: 8px 12px; /* Slightly smaller padding for action button */
+    background-color: #6c757d; /* A neutral secondary color */
+    font-size: 0.9em;
+}
+
+#compare-button:hover {
+    background-color: #5a6268;
+}
+
+#main-canvas {
+    display: block; /* Allows centering with margin auto if needed, and respects width/height */
+    margin: 10px auto; /* Center the canvas */
+    max-width: 100%; /* Ensure it doesn't overflow its container */
+    /* height: auto; already in inline style, but can be managed here */
+    border: 1px solid #ccc;
+}
+
+.reference-image-area {
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+#reference-image-preview {
+    max-width: 100%;
+    /* max-height: 250px; */ /* Removed to allow full scaling with main canvas */
+    object-fit: contain; /* Maintain aspect ratio within the given dimensions */
+    display: none; /* Initially hidden */
+    margin-top: 10px;
+    border: 1px solid #eee;
+}
+
+/* Controls Panel and Parameter Management from previous CSS */
+.controls-wrapper {
+    display: flex;
+    flex-direction: column; /* Stack controls and param management vertically */
+    gap: 20px;
+}
+
+.controls-panel,
+.parameter-management {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.08);
+    position: relative; /* Needed for .loading-overlay to position correctly */
+}
+
+.controls-panel.disabled-state {
+    pointer-events: none; /* Disable interaction */
+    opacity: 0.7; /* Visually indicate disabled state */
+}
+
+.loading-overlay {
+    position: absolute; /* Cover the parent (.controls-panel should be position: relative) */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent white */
+    z-index: 10; /* Ensure it's on top of controls */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px; /* Match parent's border-radius */
+}
+
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: #007bff; /* Spinner color */
+    animation: spin 1s ease infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-overlay span {
+    font-weight: bold;
+}
+
+.control-group {
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+
+.control-group h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1em;
+    color: #555;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+input[type="range"] {
+    width: calc(100% - 80px);
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+input[type="file"] {
+    margin-bottom: 10px;
+}
+
+select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    width: calc(100% - 80px);
+}
+
+.control-group span {
+    display: inline-block;
+    width: 50px;
+    text-align: right;
+    vertical-align: middle;
+}
+
+button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+#saved-params-list div {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#saved-params-list div:last-child {
+    border-bottom: none;
+}
+
+#saved-params-list button {
+    padding: 5px 8px;
+    font-size: 0.8em;
+    margin-left: 5px;
+    background-color: #dc3545;
+}
+
+#saved-params-list button.preset-load-button {
+    background-color: #007bff; /* Theme blue */
+    color: white;
+}
+
+#saved-params-list button.rename {
+    background-color: #ffc107;
+    color: #333;
+}
+
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px; /* Space below header before first control group */
+}
+
+.panel-header h2 {
+    margin: 0;
+}
+
+#reset-all-params-button {
+    padding: 6px 10px;
+    background-color: #17a2b8; /* Info color */
+    font-size: 0.85em;
+    margin-top: 0; /* Override default button margin-top */
+}
+
+#reset-all-params-button:hover {
+    background-color: #138496;
+}
+
+#median-filter-enable {
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) { /* Adjust breakpoint as needed */
+    .main-content {
+        flex-direction: column;
+    }
+    .right-panel {
+        height: auto; /* Allow it to grow with content on smaller screens */
+        overflow-y: visible;
+    }
+    .controls-sticky-container {
+        position: static; /* Disable sticky on smaller screens if layout breaks */
+        top: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    input[type="range"],
+    select {
+        width: calc(100% - 70px);
+    }
+    .app-header h1 {
+        font-size: 1.2em;
+    }
+} 
