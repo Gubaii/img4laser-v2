@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const laserTypeSelect = document.getElementById('laser-type');
     const histogramCanvas = document.getElementById('histogram-canvas');
     
+    // 新增 - Gamma调整相关DOM元素
+    const gammaSlider = document.getElementById('gamma-slider');
+    const gammaValueDisplay = document.getElementById('gamma-value-display');
+    const resetGammaBtn = document.getElementById('reset-gamma-btn');
+    
     // 图像分析结果元素
     const imageTypeResult = document.getElementById('image-type-result');
     const avgBrightness = document.getElementById('avg-brightness');
@@ -39,6 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let imageStats = null;
     let detectedImageType = null;
     let optimizedParams = null;
+    let recommendedGamma = 1.0; // 新增 - 保存推荐的Gamma值
     
     // 常量
     const IMAGE_TYPES = {
@@ -57,6 +63,50 @@ document.addEventListener('DOMContentLoaded', function() {
     materialColorSelect.addEventListener('change', updateOptimization);
     laserTypeSelect.addEventListener('change', updateOptimization);
     
+    // 新增 - Gamma调整相关事件监听
+    gammaSlider.addEventListener('input', updateGammaValue);
+    resetGammaBtn.addEventListener('click', resetGamma);
+    
+    // 新增 - 更新Gamma值并应用到图像
+    function updateGammaValue() {
+        const gammaValue = parseFloat(gammaSlider.value);
+        gammaValueDisplay.textContent = gammaValue.toFixed(2);
+        
+        // 应用新的Gamma值到图像
+        if (originalImageData && optimizedParams) {
+            // 复制优化参数，但更新Gamma值
+            const updatedParams = Object.assign({}, optimizedParams);
+            updatedParams.gamma = gammaValue;
+            
+            // 重新处理图像
+            processedImageData = processImage(originalImageData, updatedParams);
+            displayProcessedImage();
+            
+            // 更新显示的参数值
+            paramGamma.textContent = gammaValue.toFixed(2);
+        }
+    }
+    
+    // 新增 - 重置Gamma到推荐值
+    function resetGamma() {
+        gammaSlider.value = recommendedGamma;
+        gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
+        
+        // 应用推荐的Gamma值到图像
+        if (originalImageData && optimizedParams) {
+            // 复制优化参数，但重置Gamma值
+            const updatedParams = Object.assign({}, optimizedParams);
+            updatedParams.gamma = recommendedGamma;
+            
+            // 重新处理图像
+            processedImageData = processImage(originalImageData, updatedParams);
+            displayProcessedImage();
+            
+            // 更新显示的参数值
+            paramGamma.textContent = recommendedGamma.toFixed(2);
+        }
+    }
+    
     // 处理图像上传
     function handleImageUpload(event) {
         if (event.target.files && event.target.files[0]) {
@@ -70,6 +120,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     displayOriginalImage();
                     // 启用分析按钮
                     analyzeBtn.disabled = false;
+                    
+                    // 禁用Gamma调整控件直到图像被分析
+                    gammaSlider.disabled = true;
+                    resetGammaBtn.disabled = true;
                 };
                 originalImage.src = e.target.result;
             };
@@ -126,6 +180,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // 3. 根据图像类型和材质选择优化参数
             optimizedParams = getOptimizedParams(detectedImageType, materialTypeSelect.value, laserTypeSelect.value);
             
+            // 保存推荐的Gamma值
+            recommendedGamma = optimizedParams.gamma;
+            
             // 4. 应用参数进行图像处理
             processedImageData = processImage(originalImageData, optimizedParams);
             
@@ -140,6 +197,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 8. 启用下载按钮
             downloadBtn.disabled = false;
+            
+            // 9. 更新并启用Gamma调整控件
+            gammaSlider.value = recommendedGamma;
+            gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
+            gammaSlider.disabled = false;
+            resetGammaBtn.disabled = false;
         }, 100);
     }
     
@@ -2283,6 +2346,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 laserTypeSelect.value
             );
             
+            // 保存推荐的Gamma值
+            recommendedGamma = optimizedParams.gamma;
+            
             // Create a fresh copy of originalImageData for processing
             const originalDataCopy = new ImageData(
                 new Uint8ClampedArray(originalImageData.data),
@@ -2296,6 +2362,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (histogramCanvas && originalImageData && processedImageData) { // Guard against null canvas/data
                  drawHistogram(histogramCanvas, originalImageData, processedImageData);
             }
+            
+            // 更新Gamma控件
+            gammaSlider.value = recommendedGamma;
+            gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
         }
     }
 

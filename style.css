@@ -304,4 +304,72 @@ button:hover {
     .app-header h1 {
         font-size: 1.2em;
     }
+}
+
+/* 调整面板样式 */
+.adjustment-panel {
+    background-color: #f8f8f8;
+    border-radius: 5px;
+    padding: 15px;
+    margin: 20px 0;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.adjustment-panel h2 {
+    color: #2c3e50;
+    margin-top: 0;
+    font-size: 1.5em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 15px 0;
+}
+
+.slider-container label {
+    width: 30%;
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.slider-container input[type="range"] {
+    flex: 1;
+    margin-right: 15px;
+}
+
+.slider-container button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.slider-container button:hover {
+    background-color: #2980b9;
+}
+
+.slider-container button:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+}
+
+.adjustment-info {
+    background-color: #e8f4fc;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.adjustment-info p {
+    margin: 0;
+    color: #444;
 } 
