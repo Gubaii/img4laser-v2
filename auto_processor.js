@@ -1903,7 +1903,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = 'index.html'; // Assuming index.html can handle POSTed image data
+        form.action = 'index.html'; // 使用index.html作为主文件
         form.target = '_blank';
         
         const imageInput = document.createElement('input');
