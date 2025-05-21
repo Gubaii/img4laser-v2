@@ -1747,16 +1747,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const brightnessParams = [];
         if (optimizedParams.brightness.highlights !== 0) {
-            brightnessParams.push(`高光=${optimizedParams.brightness.highlights}`);
+            brightnessParams.push(`高光=${Math.round(optimizedParams.brightness.highlights)}`);
         }
         if (optimizedParams.brightness.shadows !== 0) {
-            brightnessParams.push(`阴影=${optimizedParams.brightness.shadows}`);
+            brightnessParams.push(`阴影=${Math.round(optimizedParams.brightness.shadows)}`);
         }
         if (optimizedParams.brightness.whites !== 0) {
-            brightnessParams.push(`白色=${optimizedParams.brightness.whites}`);
+            brightnessParams.push(`白色=${Math.round(optimizedParams.brightness.whites)}`);
         }
         if (optimizedParams.brightness.blacks !== 0) {
-            brightnessParams.push(`黑色=${optimizedParams.brightness.blacks}`);
+            brightnessParams.push(`黑色=${Math.round(optimizedParams.brightness.blacks)}`);
         }
         
         paramBrightness.textContent = brightnessParams.length > 0 ? brightnessParams.join(', ') : '无调整';
@@ -2873,16 +2873,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const brightnessParams = [];
         if (optimizedParams.brightness.highlights !== 0) {
-            brightnessParams.push(`高光=${optimizedParams.brightness.highlights}`);
+            brightnessParams.push(`高光=${Math.round(optimizedParams.brightness.highlights)}`);
         }
         if (optimizedParams.brightness.shadows !== 0) {
-            brightnessParams.push(`阴影=${optimizedParams.brightness.shadows}`);
+            brightnessParams.push(`阴影=${Math.round(optimizedParams.brightness.shadows)}`);
         }
         if (optimizedParams.brightness.whites !== 0) {
-            brightnessParams.push(`白色=${optimizedParams.brightness.whites}`);
+            brightnessParams.push(`白色=${Math.round(optimizedParams.brightness.whites)}`);
         }
         if (optimizedParams.brightness.blacks !== 0) {
-            brightnessParams.push(`黑色=${optimizedParams.brightness.blacks}`);
+            brightnessParams.push(`黑色=${Math.round(optimizedParams.brightness.blacks)}`);
         }
         
         paramBrightness.textContent = brightnessParams.length > 0 ? brightnessParams.join(', ') : '无调整';
