@@ -65,8 +65,17 @@ document.addEventListener('DOMContentLoaded', function() {
     laserTypeSelect.addEventListener('change', updateOptimization);
     
     // 新增 - Gamma调整相关事件监听
-    gammaSlider.addEventListener('input', updateGammaValue);
+    // 只在拖动结束后处理图像 (change事件)
+    gammaSlider.addEventListener('change', updateGammaValue);
+    // 在拖动过程中只更新显示值 (input事件)
+    gammaSlider.addEventListener('input', updateGammaDisplay);
     resetGammaBtn.addEventListener('click', resetGamma);
+    
+    // 只更新Gamma值显示，不处理图像
+    function updateGammaDisplay() {
+        const gammaValue = parseFloat(gammaSlider.value);
+        gammaValueDisplay.textContent = gammaValue.toFixed(2);
+    }
     
     // 创建加载指示器元素
     function createLoadingIndicator() {
@@ -1514,6 +1523,1132 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
+
+    // ADD THIS FUNCTION (from script.js lines ~1875-1970)
+    function removeVerticalArtifacts(data, width, height, strength) {
+        // console.log(`Applying vertical artifacts removal with strength: ${strength}`);
+        const tempData = new Uint8ClampedArray(data.length);
+        
+        const kernelSize = 9; 
+        const sigma = 2.0;    
+        const kernel = new Float32Array(kernelSize);
+        let kSum = 0; // Renamed from 'sum' in script.js to avoid conflict with other sums
+        
+        for (let i = 0; i < kernelSize; i++) {
+            const x_k = i - Math.floor(kernelSize/2); // Renamed 'x' to 'x_k'
+            kernel[i] = Math.exp(-(x_k*x_k)/(2*sigma*sigma));
+            kSum += kernel[i];
+        }
+        
+        if (kSum > 0) { 
+            for (let i = 0; i < kernelSize; i++) {
+                kernel[i] /= kSum;
+            }
+        } else { 
+            if (kernelSize > 0) for (let i = 0; i < kernelSize; i++) kernel[i] = 1/kernelSize;
+        }
+            
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let r = 0, g = 0, b = 0;
+                
+                for (let k = 0; k < kernelSize; k++) {
+                    const xOffset = k - Math.floor(kernelSize/2);
+                    const targetX = Math.max(0, Math.min(width-1, x + xOffset));
+                    const idx = (y * width + targetX) * 4;
+                    
+                    r += data[idx] * kernel[k];
+                    g += data[idx+1] * kernel[k];
+                    b += data[idx+2] * kernel[k];
+                }
+                
+                const targetIdx = (y * width + x) * 4;
+                tempData[targetIdx] = r;
+                tempData[targetIdx+1] = g;
+                tempData[targetIdx+2] = b;
+                tempData[targetIdx+3] = data[targetIdx+3];
+            }
+        }
+        
+        const artifactStrengthMap = new Float32Array(width * height).fill(0.0); // Init with 0
+        const detectionRadius = 1; // From script.js logic (immediate neighbors)
+            
+        for (let y = detectionRadius; y < height - detectionRadius; y++) {
+            for (let x = detectionRadius; x < width - detectionRadius; x++) {
+                const leftIdx = (y * width + (x - 1)) * 4;
+                const rightIdx = (y * width + (x + 1)) * 4;
+                const horizontalDiff = Math.abs(data[leftIdx] - data[rightIdx]); // Assuming R channel for diff
+                
+                const topIdx = ((y - 1) * width + x) * 4;
+                const bottomIdx = ((y + 1) * width + x) * 4;
+                const verticalDiff = Math.abs(data[topIdx] - data[bottomIdx]); // Assuming R channel for diff
+                
+                const ratio = (horizontalDiff + 0.01) / (verticalDiff + 0.01); 
+                artifactStrengthMap[y * width + x] = Math.min(1.0, Math.max(0.0, (ratio - 1.0) * 0.5));
+            }
+        }
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const mapIdx = y * width + x;
+                
+                let adaptiveStrength = strength;
+                if (y >= detectionRadius && y < height - detectionRadius && 
+                    x >= detectionRadius && x < width - detectionRadius) {
+                    adaptiveStrength = strength * (0.3 + 0.7 * artifactStrengthMap[mapIdx]); 
+                } else {
+                    adaptiveStrength = strength * 0.3; 
+                }
+                
+                data[idx] = data[idx] * (1 - adaptiveStrength) + tempData[idx] * adaptiveStrength;
+                data[idx + 1] = data[idx + 1] * (1 - adaptiveStrength) + tempData[idx + 1] * adaptiveStrength;
+                data[idx + 2] = data[idx + 2] * (1 - adaptiveStrength) + tempData[idx + 2] * adaptiveStrength;
+            }
+        }
+    }
+
+    // --- Restored UI and Helper Functions specific to auto_processor.js ---
+
+    // 显示处理后的图像
+    function displayProcessedImage() {
+        if (!processedImageData) return;
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = processedImageData.width;
+        canvas.height = processedImageData.height;
+        const ctx = canvas.getContext('2d');
+        ctx.putImageData(processedImageData, 0, 0);
+        
+        processedPreview.innerHTML = '';
+        processedPreview.appendChild(canvas);
+    }
+    
+    // 更新分析结果显示
+    function updateAnalysisDisplay() {
+        let imageTypeText = '';
+        let imageTypeClass = '';
+        
+        switch (detectedImageType) {
+            case IMAGE_TYPES.CARTOON:
+                imageTypeText = '卡通/线稿图像';
+                imageTypeClass = 'tag-cartoon';
+                
+                // 卡通图像特殊分析显示 (异步添加，因为DOM需要先更新)
+                setTimeout(() => {
+                    // 为卡通图像添加关于伽马分析的特殊提示
+                    const cartoonAnalysisDiv = document.createElement('div');
+                    cartoonAnalysisDiv.className = 'cartoon-analysis-info';
+                    cartoonAnalysisDiv.style.marginTop = '10px';
+                    cartoonAnalysisDiv.style.padding = '5px';
+                    cartoonAnalysisDiv.style.background = '#f8f9fa';
+                    cartoonAnalysisDiv.style.borderRadius = '4px';
+                    cartoonAnalysisDiv.style.fontSize = '14px';
+                    
+                    // 计算百分比值
+                    const brightRatioPercent = (imageStats.brightRatio * 100).toFixed(1);
+                    const darkRatioPercent = (imageStats.darkRatio * 100).toFixed(1);
+                    
+                    // 获取伽马值
+                    const gammaValue = optimizedParams ? optimizedParams.gamma : 1.0;
+                    
+                    // 确定伽马效果描述
+                    let gammaEffect = '';
+                    if (gammaValue > 1.5) {
+                        gammaEffect = '(中间调显著加深)';
+                    } else if (gammaValue > 1.2) {
+                        gammaEffect = '(中间调加深)';
+                    } else if (gammaValue <= 0.8) {
+                        gammaEffect = '(整体显著增亮)';
+                    } else if (gammaValue < 0.9) {
+                        gammaEffect = '(整体增亮)';
+                    } else {
+                        gammaEffect = '(平衡调整)';
+                    }
+                    
+                    cartoonAnalysisDiv.innerHTML = `
+                        <strong>卡通图像伽马分析:</strong><br>
+                        亮区占比: <b>${brightRatioPercent}%</b> | 暗区占比: <b>${darkRatioPercent}%</b><br>
+                        调整后伽马值: <b>${gammaValue}</b> ${gammaEffect}
+                    `;
+                    
+                    // 在图像类型容器中添加分析信息
+                    const typeContainer = document.getElementById('image-type-container');
+                    if (typeContainer && !typeContainer.querySelector('.cartoon-analysis-info')) {
+                        typeContainer.appendChild(cartoonAnalysisDiv);
+                    }
+                }, 100);
+                break;
+            case IMAGE_TYPES.PORTRAIT:
+                imageTypeText = '人像图像';
+                imageTypeClass = 'tag-portrait';
+                break;
+            case IMAGE_TYPES.TEXT:
+                imageTypeText = '文本/图标图像';
+                imageTypeClass = 'tag-text';
+                break;
+            case IMAGE_TYPES.PHOTO:
+            default:
+                imageTypeText = '普通照片图像';
+                imageTypeClass = 'tag-photo';
+                break;
+        }
+        
+        imageTypeResult.innerHTML = `<span class="image-type-tag ${imageTypeClass}">${imageTypeText}</span>`;
+        
+        // 显示统计数据
+        avgBrightness.textContent = imageStats.brightness.toFixed(1);
+        contrastValue.textContent = imageStats.contrast.toFixed(1);
+        darkRatio.textContent = (imageStats.darkRatio * 100).toFixed(1) + '%';
+        brightRatio.textContent = (imageStats.brightRatio * 100).toFixed(1) + '%';
+        
+        // 更新增强的特征显示
+        if (edgeComplexity) {
+            edgeComplexity.textContent = (imageStats.distinctEdgeRatio * 100).toFixed(1) + '%';
+            detailRichness.textContent = (imageStats.detailRichness * 100).toFixed(1) + '%';
+            smoothness.textContent = (imageStats.smoothness * 100).toFixed(1) + '%';
+        }
+        
+        if (document.getElementById('histogram-peaks')) {
+            document.getElementById('histogram-peaks').textContent = imageStats.peaks || '-';
+            if (imageStats.peakPositions && imageStats.peakPositions.length > 0) {
+                document.getElementById('peak-positions').textContent = 
+                    imageStats.peakPositions.slice(0, 3).map(p => p).join(', ');
+            }
+        }
+        
+        if (document.getElementById('bw-ratio')) {
+            document.getElementById('bw-ratio').textContent = 
+                imageStats.bwRatio ? (imageStats.bwRatio * 100).toFixed(1) + '%' : '-';
+        }
+        
+        if (document.getElementById('color-simplicity')) {
+            document.getElementById('color-simplicity').textContent = 
+                imageStats.colorSimplicity ? (imageStats.colorSimplicity * 100).toFixed(1) + '%' : '-';
+        }
+        
+        let depthValue = '中等';
+        if (detectedImageType === IMAGE_TYPES.CARTOON || detectedImageType === IMAGE_TYPES.TEXT) {
+            depthValue = '深度';
+        } else if (detectedImageType === IMAGE_TYPES.PORTRAIT) {
+            depthValue = '中等';
+        } else if (imageStats.contrast < 40 || imageStats.brightness < 80) {
+            depthValue = '浅度';
+        }
+        
+        if (recommendedDepth) {
+            recommendedDepth.textContent = depthValue;
+        }
+        
+        paramContrast.textContent = optimizedParams.contrast;
+        paramGamma.textContent = optimizedParams.gamma.toFixed(2);
+        paramClahe.textContent = `限制=${optimizedParams.claheClipLimit.toFixed(1)}, 尺寸=${optimizedParams.claheTileSize}`;
+        paramClarity.textContent = optimizedParams.clarity;
+        
+        const brightnessParams = [];
+        if (optimizedParams.brightness.highlights !== 0) {
+            brightnessParams.push(`高光=${optimizedParams.brightness.highlights}`);
+        }
+        if (optimizedParams.brightness.shadows !== 0) {
+            brightnessParams.push(`阴影=${optimizedParams.brightness.shadows}`);
+        }
+        if (optimizedParams.brightness.whites !== 0) {
+            brightnessParams.push(`白色=${optimizedParams.brightness.whites}`);
+        }
+        if (optimizedParams.brightness.blacks !== 0) {
+            brightnessParams.push(`黑色=${optimizedParams.brightness.blacks}`);
+        }
+        
+        paramBrightness.textContent = brightnessParams.length > 0 ? brightnessParams.join(', ') : '无调整';
+        paramUsm.textContent = `强度=${optimizedParams.usm.amount}, 半径=${optimizedParams.usm.radius}, 阈值=${optimizedParams.usm.threshold}`;
+        
+        const optimizationSummary = document.getElementById('optimization-summary');
+        if (optimizationSummary) {
+            let summaryText = `基于${imageTypeText}的优化策略：`;
+            switch (detectedImageType) {
+                case IMAGE_TYPES.CARTOON: 
+                    if (imageStats.brightRatio > 0.3) {
+                        summaryText += '增强线条清晰度，保持白色区域不变，增加伽马值加深中间调'; 
+                    } else if (imageStats.darkRatio > 0.85) {
+                        summaryText += '增强线条清晰度，保持白色区域不变，极大降低伽马值(0.6)使极暗图像明显增亮';
+                    } else if (imageStats.darkRatio > 0.4) {
+                        summaryText += '增强线条清晰度，保持白色区域不变，显著降低伽马值使暗区更明显';
+                    } else {
+                        summaryText += '增强线条清晰度，保持白色区域不变，适度调整中间调';
+                    }
+                    break;
+                case IMAGE_TYPES.PORTRAIT: summaryText += '保留面部细节，增强皮肤纹理，中和对比度'; break;
+                case IMAGE_TYPES.TEXT: summaryText += '最大化文本清晰度，增强边缘锐度'; break;
+                case IMAGE_TYPES.PHOTO: summaryText += '平衡整体细节，增强纹理层次感，保持自然色调过渡'; break;
+            }
+            optimizationSummary.textContent = summaryText;
+        }
+    }
+    
+    // 绘制直方图
+    function drawHistogram(canvas, originalData, processedData) {
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width = 400;
+        const height = canvas.height = 150;
+        
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#f5f5f5';
+        ctx.fillRect(0, 0, width, height);
+        
+        const originalHistogram = new Array(256).fill(0);
+        const processedHistogram = new Array(256).fill(0);
+        
+        for (let i = 0; i < originalData.data.length; i += 4) {
+            const r = originalData.data[i];
+            const g = originalData.data[i + 1];
+            const b = originalData.data[i + 2];
+            const brightness = Math.round(0.299 * r + 0.587 * g + 0.114 * b); // Or use BT.709 if consistent elsewhere
+            originalHistogram[brightness]++;
+        }
+        
+        for (let i = 0; i < processedData.data.length; i += 4) {
+            const r = processedData.data[i];
+            const g = processedData.data[i + 1];
+            const b = processedData.data[i + 2];
+            const brightness = Math.round(0.299 * r + 0.587 * g + 0.114 * b); // Or use BT.709
+            processedHistogram[brightness]++;
+        }
+        
+        const maxOriginal = Math.max(...originalHistogram);
+        const maxProcessed = Math.max(...processedHistogram);
+        const maxValue = Math.max(maxOriginal, maxProcessed, 1); // Avoid division by zero if all are 0
+        
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i < 5; i++) {
+            const y = height - (i * height / 4) - 20;
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+        }
+        for (let i = 0; i <= 4; i++) {
+            const x = i * width / 4;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height - 20); ctx.stroke();
+        }
+        
+        ctx.fillStyle = '#333';
+        ctx.textAlign = 'center';
+        ctx.font = '10px Arial';
+        for (let i = 0; i <= 4; i++) {
+            const x = i * width / 4;
+            ctx.fillText(Math.round(i * 255 / 4).toString(), x, height - 5);
+        }
+        
+        const gradientHeight = 10;
+        const gradient = ctx.createLinearGradient(0, 0, width, 0);
+        gradient.addColorStop(0, '#000000');
+        gradient.addColorStop(1, '#ffffff');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, height - 20, width, gradientHeight);
+        
+        const legendSize = 12, legendPadding = 5;
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.9)';
+        ctx.fillRect(10, 10, legendSize, legendSize);
+        ctx.fillStyle = '#333';
+        ctx.textAlign = 'left';
+        ctx.fillText('原始图像', 10 + legendSize + legendPadding, 10 + legendSize - 2);
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
+        ctx.fillRect(100, 10, legendSize, legendSize);
+        ctx.fillStyle = '#333';
+        ctx.fillText('处理后图像', 100 + legendSize + legendPadding, 10 + legendSize - 2);
+        
+        function plotHistogram(histData, colorStroke, colorFill) {
+            ctx.strokeStyle = colorStroke;
+            ctx.fillStyle = colorFill;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let i = 0; i < 256; i++) {
+                const x = i * width / 256;
+                const y = height - 20 - (histData[i] / maxValue) * (height - 30);
+                if (i === 0) { ctx.moveTo(x, height - 20); ctx.lineTo(x, y); }
+                else { ctx.lineTo(x, y); }
+            }
+            ctx.lineTo(width, height - 20);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        plotHistogram(originalHistogram, 'rgba(52, 152, 219, 0.8)', 'rgba(52, 152, 219, 0.3)');
+        plotHistogram(processedHistogram, 'rgba(231, 76, 60, 0.8)', 'rgba(231, 76, 60, 0.3)');
+    }
+    
+    // 下载处理后的图像
+    function downloadProcessedImage() {
+        if (!processedImageData) return;
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = processedImageData.width;
+        canvas.height = processedImageData.height;
+        const ctx = canvas.getContext('2d');
+        ctx.putImageData(processedImageData, 0, 0);
+        
+        const link = document.createElement('a');
+        link.download = '激光雕刻优化图像.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+    
+    // 跳转到手动编辑页面
+    function redirectToManualEdit() {
+        if (!originalImage) return;
+        
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'index.html'; // Assuming index.html can handle POSTed image data
+        form.target = '_blank';
+        
+        const imageInput = document.createElement('input');
+        imageInput.type = 'hidden';
+        imageInput.name = 'imageData';
+        imageInput.value = originalImage.src; // Send original image data URL
+        form.appendChild(imageInput);
+        
+        const paramsInput = document.createElement('input');
+        paramsInput.type = 'hidden';
+        paramsInput.name = 'presetParams';
+        paramsInput.value = JSON.stringify(optimizedParams); // Send optimized params
+        form.appendChild(paramsInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    }
+
+    // 以下是从imageProcessor.js导入的高级图像分析函数 (这些应该保留)
+    
+    /**
+     * 分析直方图特征 - 从img4laser项目导入
+     * @param {Array} histogram - 灰度直方图
+     * @returns {Object} 直方图特征
+     */
+    function analyzeHistogramFeatures(histogram) {
+        const total = histogram.reduce((sum, val) => sum + val, 0);
+        const normalized = histogram.map(v => v / total);
+        
+        // 平滑直方图减少噪声
+        const smoothed = [];
+        for (let i = 0; i < normalized.length; i++) {
+            let sum = 0;
+            let count = 0;
+            for (let j = Math.max(0, i - 2); j <= Math.min(255, i + 2); j++) {
+                sum += normalized[j];
+                count++;
+            }
+            smoothed[i] = sum / count;
+        }
+        
+        // 寻找峰值
+        const peaks = [];
+        const peakThreshold = 0.002; // 阈值提高到 0.2%
+        for (let i = 2; i < 254; i++) {
+            if (smoothed[i] > peakThreshold &&
+                smoothed[i] > smoothed[i - 1] &&
+                smoothed[i] > smoothed[i - 2] && 
+                smoothed[i] >= smoothed[i + 1] && 
+                smoothed[i] >= smoothed[i + 2]) {
+                
+                // 确保峰值比附近低点高出一些
+                const localMinLeft = Math.min(smoothed[i - 1], smoothed[i - 2]);
+                const localMinRight = Math.min(smoothed[i + 1], smoothed[i + 2]);
+                if (smoothed[i] > localMinLeft * 1.1 && smoothed[i] > localMinRight * 1.1) {
+                    peaks.push({
+                        position: i,
+                        height: smoothed[i]
+                    });
+                }
+            }
+        }
+        
+        // 如果上面没找到，尝试更简单的峰值查找
+        if (peaks.length === 0) {
+            for (let i = 1; i < 255; i++) {
+                if (smoothed[i] > peakThreshold && 
+                   smoothed[i] > smoothed[i-1] && 
+                   smoothed[i] >= smoothed[i+1]) {
+                   if (peaks.length === 0 || Math.abs(i - peaks[peaks.length - 1].position) > 3) {
+                        peaks.push({ position: i, height: smoothed[i] });
+                   }
+                }
+            }
+        }
+
+        peaks.sort((a, b) => b.height - a.height); // 按高度排序
+        
+        // 计算黑白占比
+        let bwPixels = 0;
+        const bwThresholdLow = 10;
+        const bwThresholdHigh = 245;
+        const totalPixels = histogram.reduce((sum, count) => sum + count, 0);
+        if (totalPixels > 0) {
+            for (let i = 0; i <= bwThresholdLow; i++) {
+                bwPixels += (histogram[i] || 0);
+            }
+            for (let i = bwThresholdHigh; i <= 255; i++) {
+                bwPixels += (histogram[i] || 0);
+            }
+        }
+        const bwRatio = totalPixels > 0 ? bwPixels / totalPixels : 0;
+
+        // 计算谷深度
+        let valleyDepth = 0;
+        if (peaks.length >= 2) {
+            const peak1Pos = peaks[0].position;
+            const peak2Pos = peaks[1].position;
+            const startPos = Math.min(peak1Pos, peak2Pos);
+            const endPos = Math.max(peak1Pos, peak2Pos);
+            
+            if (endPos - startPos > 5) {
+                let minHeightBetween = 1;
+                for (let i = startPos + 1; i < endPos; i++) {
+                     if (smoothed[i] < minHeightBetween) {
+                        minHeightBetween = smoothed[i];
+                    }
+                }
+                const lowerPeakHeight = Math.min(peaks[0].height, peaks[1].height);
+                if (lowerPeakHeight > 0 && minHeightBetween < lowerPeakHeight * 0.9) { 
+                   valleyDepth = 1 - (minHeightBetween / lowerPeakHeight);
+                }
+            }
+        }
+        
+        return {
+            peakCount: peaks.length,
+            peaks: peaks.slice(0, 3),
+            valleyDepth: valleyDepth,
+            bwRatio: bwRatio
+        };
+    }
+    
+    /**
+     * 分析边缘特征 - 从img4laser项目导入
+     * @param {ImageData} grayImage - 灰度图像
+     * @returns {Object} 边缘特征
+     */
+    function analyzeEdgeFeatures(grayImage) {
+        const data = grayImage.data;
+        const width = grayImage.width;
+        const height = grayImage.height;
+        
+        // 边缘图
+        const edgeMap = new Uint8Array(width * height);
+        const edgeStrength = new Uint8Array(width * height);
+        
+        // 边缘检测 (改进版Sobel)
+        let edgeCount = 0;
+        let distinctEdgeCount = 0;
+        let totalContrast = 0;
+        
+        for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                const idx = y * width + x;
+                
+                // 获取3x3邻域
+                const p00 = data[((y-1) * width + (x-1)) * 4];
+                const p01 = data[((y-1) * width + x) * 4];
+                const p02 = data[((y-1) * width + (x+1)) * 4];
+                const p10 = data[(y * width + (x-1)) * 4];
+                const p11 = data[(y * width + x) * 4];
+                const p12 = data[(y * width + (x+1)) * 4];
+                const p20 = data[((y+1) * width + (x-1)) * 4];
+                const p21 = data[((y+1) * width + x) * 4];
+                const p22 = data[((y+1) * width + (x+1)) * 4];
+                
+                // Sobel算子
+                const gx = ((p02 + 2*p12 + p22) - (p00 + 2*p10 + p20));
+                const gy = ((p20 + 2*p21 + p22) - (p00 + 2*p01 + p02));
+                
+                // 梯度幅值
+                const gradient = Math.sqrt(gx*gx + gy*gy);
+                
+                // 边缘强度
+                edgeStrength[idx] = Math.min(255, Math.round(gradient));
+                
+                // 判断边缘
+                if (gradient > 20) {
+                    edgeMap[idx] = 1;
+                    edgeCount++;
+                    totalContrast += gradient;
+                    
+                    if (gradient > 50) {
+                        distinctEdgeCount++;
+                    }
+                }
+            }
+        }
+        
+        // 查找长边 (连通区域分析)
+        let longEdgeCount = 0;
+        const visited = new Uint8Array(width * height);
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = y * width + x;
+                
+                if (edgeMap[idx] && !visited[idx]) {
+                    // 使用广度优先搜索查找连通区域
+                    const queue = [{x, y}];
+                    let size = 0;
+                    let totalX = 0, totalY = 0;
+                    let minX = x, maxX = x, minY = y, maxY = y;
+                    
+                    visited[idx] = 1;
+                    
+                    while (queue.length > 0 && size < 1000) {
+                        const {x: cx, y: cy} = queue.shift();
+                        const cidx = cy * width + cx;
+                        
+                        size++;
+                        totalX += cx;
+                        totalY += cy;
+                        
+                        // 更新边界
+                        minX = Math.min(minX, cx);
+                        maxX = Math.max(maxX, cx);
+                        minY = Math.min(minY, cy);
+                        maxY = Math.max(maxY, cy);
+                        
+                        // 检查8邻域
+                        const neighbors = [
+                            {x: cx-1, y: cy}, {x: cx+1, y: cy},
+                            {x: cx, y: cy-1}, {x: cx, y: cy+1},
+                            {x: cx-1, y: cy-1}, {x: cx+1, y: cy-1},
+                            {x: cx-1, y: cy+1}, {x: cx+1, y: cy+1}
+                        ];
+                        
+                        for (const {x: nx, y: ny} of neighbors) {
+                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                const nidx = ny * width + nx;
+                                if (edgeMap[nidx] && !visited[nidx]) {
+                                    queue.push({x: nx, y: ny});
+                                    visited[nidx] = 1;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 分析连通区域特征
+                    if (size > 15) {
+                        // 计算边缘的线性度
+                        const width = maxX - minX + 1;
+                        const height = maxY - minY + 1;
+                        const boxArea = width * height;
+                        const density = size / boxArea;
+                        
+                        // 长直边缘的线性度高，密度低
+                        if ((width > 20 || height > 20) && (density < 0.5 || size > 30)) {
+                            longEdgeCount++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 计算平均边缘对比度
+        const avgContrast = edgeCount > 0 ? totalContrast / edgeCount : 0;
+        
+        return {
+            edgeRatio: edgeCount / (width * height),
+            distinctEdgeRatio: distinctEdgeCount / (width * height),
+            longEdgeRatio: longEdgeCount / (width * height * 0.01), // 归一化
+            edgeContrast: avgContrast
+        };
+    }
+    
+    /**
+     * 分析纹理特征 - 从img4laser项目导入
+     * @param {ImageData} grayImage - 灰度图像
+     * @returns {Object} 纹理特征
+     */
+    function analyzeTextureFeatures(grayImage) {
+        const data = grayImage.data;
+        const width = grayImage.width;
+        const height = grayImage.height;
+        
+        // 降采样并量化图像来减少计算量
+        const blockSize = 4; // 4x4块
+        const quantizedWidth = Math.floor(width / blockSize);
+        const quantizedHeight = Math.floor(height / blockSize);
+        const quantized = new Uint8Array(quantizedWidth * quantizedHeight);
+        
+        // 计算颜色单一性
+        let grayLevels = new Set();
+        const colorSampleStep = 4; // 采样步长
+        let colorSampledPixels = 0;
+        
+        for (let i = 0; i < data.length; i += 4 * colorSampleStep) {
+            if (i < data.length) {
+                // 量化为32个灰度级别
+                const quantizedGray = Math.floor(data[i] / 8);
+                grayLevels.add(quantizedGray);
+                colorSampledPixels++;
+            }
+        }
+        
+        // 颜色单一性指标
+        const colorSimplicity = 1 - (grayLevels.size / 32); // 值越高表示颜色越单一
+        
+        for (let y = 0; y < quantizedHeight; y++) {
+            for (let x = 0; x < quantizedWidth; x++) {
+                // 计算块的平均值
+                let sum = 0;
+                let count = 0;
+                
+                for (let by = 0; by < blockSize; by++) {
+                    for (let bx = 0; bx < blockSize; bx++) {
+                        const srcX = x * blockSize + bx;
+                        const srcY = y * blockSize + by;
+                        
+                        if (srcX < width && srcY < height) {
+                            const idx = (srcY * width + srcX) * 4;
+                            sum += data[idx];
+                            count++;
+                        }
+                    }
+                }
+                
+                const avg = Math.round(sum / count);
+                // 8级量化 (0-7)，合并相似灰度
+                quantized[y * quantizedWidth + x] = Math.floor(avg / 32);
+            }
+        }
+        
+        // 计算低方差区域的总像素面积占比
+        let totalLowVariancePixels = 0;
+        const varBlockSize = 3; // 3x3块
+        const lowVarianceThreshold = 30; // 方差阈值
+        
+        for (let y = 0; y < height - varBlockSize; y += varBlockSize) {
+            for (let x = 0; x < width - varBlockSize; x += varBlockSize) {
+                let sum = 0;
+                let sumSq = 0;
+                let count = 0;
+                
+                // 计算块的均值和方差
+                for (let by = 0; by < varBlockSize; by++) {
+                    for (let bx = 0; bx < varBlockSize; bx++) {
+                        const idx = ((y + by) * width + (x + bx)) * 4;
+                        const val = data[idx];
+                        sum += val;
+                        sumSq += val * val;
+                        count++;
+                    }
+                }
+                
+                const mean = sum / count;
+                const variance = (sumSq / count) - (mean * mean);
+                
+                // 低方差 = 平滑区域
+                if (variance < lowVarianceThreshold) {
+                    totalLowVariancePixels += count; // 累加块内的像素数量
+                }
+            }
+        }
+        const totalPixels = width * height;
+        const lowVarianceAreaRatio = totalPixels > 0 ? totalLowVariancePixels / totalPixels : 0;
+        
+        // 找到连通的色块
+        const colorBlocks = findColorBlocks(quantized, quantizedWidth, quantizedHeight);
+        
+        // 检测皮肤色调
+        let skinPixels = 0;
+        const skipFactor = 4; // 降低采样间隔
+        let sampledPixels = 0;
+        
+        for (let i = 0; i < data.length; i += 4 * skipFactor) {
+            if (i + 2 < data.length) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                
+                // 改进的肤色检测
+                const basicSkinCondition = r > 60 && g > 40 && b > 20 && r > g && r > b;
+                
+                // 标准肤色 - 较严格的条件
+                const standardSkin = basicSkinCondition && 
+                                 r - g > 15 && 
+                                 r - b > 20 && r - b < 120;
+                                 
+                // 高亮肤色 - 适用于彩色照片中偏亮的肤色
+                const brightSkin = r > 150 && g > 120 && b > 100 && 
+                                 r > g + 10 && g > b && 
+                                 r - b < 140;
+                                 
+                // 粉红色肤色 - 适用于带粉色色调的照片
+                const pinkSkin = r > 180 && g > 120 && b > 120 && 
+                               r - g > 20 && g - b < 20;
+                
+                if (standardSkin || brightSkin || pinkSkin) {
+                    skinPixels++;
+                }
+                
+                sampledPixels++;
+            }
+        }
+        
+        return {
+            colorBlockCount: colorBlocks.length,
+            lowVarianceAreaRatio: lowVarianceAreaRatio,
+            skinToneRatio: skinPixels / sampledPixels,
+            colorSimplicity: colorSimplicity
+        };
+    }
+    
+    /**
+     * 查找色块 (连通区域) - 从img4laser项目导入
+     * @param {Uint8Array} quantized - 量化后的图像数据
+     * @param {number} width - 图像宽度
+     * @param {number} height - 图像高度
+     * @returns {Array} 色块列表
+     */
+    function findColorBlocks(quantized, width, height) {
+        const visited = new Uint8Array(width * height);
+        const blocks = [];
+        const minBlockSize = 4; // 最小色块大小
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = y * width + x;
+                
+                if (!visited[idx]) {
+                    const color = quantized[idx];
+                    // BFS寻找连通区域
+                    const queue = [{x, y}];
+                    let size = 0;
+                    
+                    visited[idx] = 1;
+                    
+                    while (queue.length > 0 && size < 1000) { // 限制大小避免大区域计算过久
+                        const curr = queue.shift();
+                        size++;
+                        
+                        // 检查4邻域
+                        const neighbors = [
+                            {x: curr.x-1, y: curr.y},
+                            {x: curr.x+1, y: curr.y},
+                            {x: curr.x, y: curr.y-1},
+                            {x: curr.x, y: curr.y+1}
+                        ];
+                        
+                        for (const {x: nx, y: ny} of neighbors) {
+                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                const nidx = ny * width + nx;
+                                
+                                if (!visited[nidx] && quantized[nidx] === color) {
+                                    queue.push({x: nx, y: ny});
+                                    visited[nidx] = 1;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 只记录大于最小值的色块
+                    if (size >= minBlockSize) {
+                        blocks.push({
+                            color: color,
+                            size: size
+                        });
+                    }
+                }
+            }
+        }
+        
+        return blocks;
+    }
+    
+    /**
+     * 计算平滑度 - 检测图像的局部平滑程度
+     * @param {ImageData} imageData - 图像数据 
+     * @returns {Object} 平滑度数据
+     */
+    function calculateSmoothness(imageData) {
+        const { data, width, height } = imageData;
+        const blockSize = 8; // 局部区域大小
+        const numBlocksX = Math.floor(width / blockSize);
+        const numBlocksY = Math.floor(height / blockSize);
+        
+        let totalVariance = 0;
+        let blockCount = 0;
+        let smoothRegions = 0;
+        const varianceThreshold = 100; // 平滑区域的方差阈值
+        
+        // 计算局部区域的方差
+        for (let blockY = 0; blockY < numBlocksY; blockY++) {
+            for (let blockX = 0; blockX < numBlocksX; blockX++) {
+                let sum = 0;
+                let sumSq = 0;
+                let count = 0;
+                
+                // 计算块内像素的和与平方和
+                for (let y = 0; y < blockSize; y++) {
+                    for (let x = 0; x < blockSize; x++) {
+                        const pixelX = blockX * blockSize + x;
+                        const pixelY = blockY * blockSize + y;
+                        
+                        if (pixelX < width && pixelY < height) {
+                            const idx = (pixelY * width + pixelX) * 4;
+                            const brightness = Math.round(
+                                0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+                            );
+                            
+                            sum += brightness;
+                            sumSq += brightness * brightness;
+                            count++;
+                        }
+                    }
+                }
+                
+                if (count > 0) {
+                    const mean = sum / count;
+                    const variance = (sumSq / count) - (mean * mean);
+                    
+                    totalVariance += variance;
+                    blockCount++;
+                    
+                    if (variance < varianceThreshold) {
+                        smoothRegions++;
+                    }
+                }
+            }
+        }
+        
+        const avgVariance = totalVariance / (blockCount || 1);
+        const smoothness = smoothRegions / (blockCount || 1);
+        
+        return { smoothness, avgVariance };
+    }
+
+    // --- Add back the updateOptimization function if it was removed ---
+    // 当材质或激光功率变化时更新优化
+    function updateOptimization() {
+        if (imageStats && detectedImageType && originalImageData) { // Ensure all needed data is available
+            // 显示加载指示器
+            const loadingIndicator = showLoading(processedPreview);
+            
+            // 使用setTimeout让UI有时间更新
+            setTimeout(() => {
+                try {
+                    // 获取新的优化参数
+                    optimizedParams = getOptimizedParams(
+                        detectedImageType,
+                        materialTypeSelect.value,
+                        laserTypeSelect.value
+                    );
+                    
+                    // 保存推荐的Gamma值
+                    recommendedGamma = optimizedParams.gamma;
+                    
+                    // Create a fresh copy of originalImageData for processing
+                    const originalDataCopy = new ImageData(
+                        new Uint8ClampedArray(originalImageData.data),
+                        originalImageData.width,
+                        originalImageData.height
+                    );
+
+                    // 处理图像
+                    processedImageData = processImage(originalDataCopy, optimizedParams);
+                    displayProcessedImage(); 
+                    updateAnalysisDisplay(); 
+                    
+                    // 更新直方图
+                    if (histogramCanvas && originalImageData && processedImageData) { // Guard against null canvas/data
+                        drawHistogram(histogramCanvas, originalImageData, processedImageData);
+                    }
+                    
+                    // 更新Gamma控件
+                    gammaSlider.value = recommendedGamma;
+                    gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
+                } catch (error) {
+                    console.error('更新优化参数失败:', error);
+                } finally {
+                    // 隐藏加载指示器
+                    hideLoading();
+                }
+            }, 50);
+        }
+    }
+
+    // ADD THIS FUNCTION from script.js (approx lines 783-827)
+    // Placed before applyClarity which might use it if it were part of a more complex clarity.
+    // More importantly, applyUnsharpMask (to be updated next) will use it.
+    function applyBilateralFilter(originalDataSource, width, height, kernelRadius, sigmaD, sigmaR) {
+        const filteredArr = new Uint8ClampedArray(originalDataSource.length);
+        if (sigmaD <= 0) sigmaD = 0.1; // Ensure sigmaD is positive
+        if (sigmaR <= 0) sigmaR = 0.1; // Ensure sigmaR is positive
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let sumWeightedPixelR = 0;
+                let sumWeightedPixelG = 0;
+                let sumWeightedPixelB = 0;
+                let sumWeights = 0;
+                const centerPixelIndex = (y * width + x) * 4;
+                const centerPixelValueR = originalDataSource[centerPixelIndex];
+                const centerPixelValueG = originalDataSource[centerPixelIndex + 1];
+                const centerPixelValueB = originalDataSource[centerPixelIndex + 2];
+
+                for (let ky = -kernelRadius; ky <= kernelRadius; ky++) {
+                    for (let kx = -kernelRadius; kx <= kernelRadius; kx++) {
+                        const currentY = Math.max(0, Math.min(height - 1, y + ky));
+                        const currentX = Math.max(0, Math.min(width - 1, x + kx));
+                        
+                        const neighborPixelIndex = (currentY * width + currentX) * 4;
+                        const neighborPixelValueR = originalDataSource[neighborPixelIndex];
+                        const neighborPixelValueG = originalDataSource[neighborPixelIndex + 1];
+                        const neighborPixelValueB = originalDataSource[neighborPixelIndex + 2];
+
+                        const spatialDistSq = (kx * kx) + (ky * ky);
+                        const weightSpatial = Math.exp(-spatialDistSq / (2 * sigmaD * sigmaD));
+                        
+                        const rangeDistSqR = (centerPixelValueR - neighborPixelValueR) * (centerPixelValueR - neighborPixelValueR);
+                        const weightRangeR = Math.exp(-rangeDistSqR / (2 * sigmaR * sigmaR));
+                        
+                        const totalWeight = weightSpatial * weightRangeR; 
+                        
+                        sumWeightedPixelR += neighborPixelValueR * totalWeight;
+                        sumWeightedPixelG += neighborPixelValueG * totalWeight; 
+                        sumWeightedPixelB += neighborPixelValueB * totalWeight; 
+                        sumWeights += totalWeight;
+                    }
+                }
+
+                filteredArr[centerPixelIndex]     = sumWeights === 0 ? centerPixelValueR : sumWeightedPixelR / sumWeights;
+                filteredArr[centerPixelIndex + 1] = sumWeights === 0 ? centerPixelValueG : sumWeightedPixelG / sumWeights;
+                filteredArr[centerPixelIndex + 2] = sumWeights === 0 ? centerPixelValueB : sumWeightedPixelB / sumWeights;
+                filteredArr[centerPixelIndex + 3] = originalDataSource[centerPixelIndex + 3]; 
+            }
+        }
+        return filteredArr;
+    }
+
+    function applyClarity(data, width, height, level) { 
+        if (level === 0) return;
+
+        const strength = level / 100.0; 
+        const blurRadius = 2; // script.js uses 2 for clarity's blur sigma for createGaussianBlurredImage
+
+        // Create a copy of 'data' for blurring, as createGaussianBlurredImage takes originalDataSource
+        // and should not modify the 'data' array that clarity itself is modifying.
+        const dataCopyForBlur = new Uint8ClampedArray(data.length);
+        for(let k=0; k < data.length; k++) dataCopyForBlur[k] = data[k];
+
+        // createGaussianBlurredImage (the new version) returns Uint8ClampedArray.
+        // script.js uses darkPixelIgnoreThreshold = 0 for clarity's blur.
+        const blurredDataArray = createGaussianBlurredImage(dataCopyForBlur, width, height, blurRadius, 0); 
+
+        for (let i = 0; i < data.length; i += 4) {
+            // Input 'data' to applyClarity in auto_processor is post-convertToGrayscale (R=G=B).
+            // script.js applies to R, G, B separately. We follow that for exactness.
+            data[i] = truncate(data[i] + strength * (data[i] - blurredDataArray[i]));
+            data[i + 1] = truncate(data[i + 1] + strength * (data[i + 1] - blurredDataArray[i + 1]));
+            data[i + 2] = truncate(data[i + 2] + strength * (data[i + 2] - blurredDataArray[i + 2]));
+        }
+    }
+
+    function applyUnsharpMask(data, width, height, strength, radius, threshold) {
+        if (strength === 0) return;
+
+        const intBlurRadius = Math.max(0, Math.round(radius)); 
+
+        const originalDataSnapshot = new Uint8ClampedArray(data.length);
+        for(let k=0; k < data.length; k++) originalDataSnapshot[k] = data[k];
+        
+        const VERY_DARK_THRESHOLD_FOR_BLUR_MODIFICATION = 0; 
+        const gaussianBlurred = createGaussianBlurredImage(originalDataSnapshot, width, height, intBlurRadius, VERY_DARK_THRESHOLD_FOR_BLUR_MODIFICATION);
+
+        const MAX_BILATERAL_KERNEL_RADIUS_FOR_USM = 3; 
+        const actualKernelRadiusForBilateral = Math.min(intBlurRadius, MAX_BILATERAL_KERNEL_RADIUS_FOR_USM);
+        const sigmaD_bilateral = Math.max(0.1, actualKernelRadiusForBilateral); 
+        const sigmaR_bilateral = 15; 
+        const bilateralBlurred = applyBilateralFilter(originalDataSnapshot, width, height, actualKernelRadiusForBilateral, sigmaD_bilateral, sigmaR_bilateral);
+
+        const gaussianWeight = 0.7; 
+        const combinedBlurredData = new Uint8ClampedArray(originalDataSnapshot.length);
+        for (let i = 0; i < originalDataSnapshot.length; i += 4) {
+            combinedBlurredData[i]   = gaussianWeight * gaussianBlurred[i]   + (1 - gaussianWeight) * bilateralBlurred[i];
+            combinedBlurredData[i+1] = gaussianWeight * gaussianBlurred[i+1] + (1 - gaussianWeight) * bilateralBlurred[i+1];
+            combinedBlurredData[i+2] = gaussianWeight * gaussianBlurred[i+2] + (1 - gaussianWeight) * bilateralBlurred[i+2];
+            combinedBlurredData[i+3] = originalDataSnapshot[i+3]; 
+        }
+        const blurredData = combinedBlurredData; 
+        
+        const applyDarkProtectionMask = true; 
+        const highlightProtectionStart = 204; 
+        let protectionStrengthMask; 
+        let currentProtectionLevel = 0.0;
+
+        if (applyDarkProtectionMask) {
+            const VERY_DARK_THRESHOLD_FOR_MASK_ANCHOR = 2; 
+            const darkProtectionRadius = Math.max(0, intBlurRadius + 2); 
+            
+            protectionStrengthMask = new Float32Array(width * height).fill(0.0);
+
+            if (darkProtectionRadius > 0) { 
+                for (let yAnchor = 0; yAnchor < height; yAnchor++) {
+                    for (let xAnchor = 0; xAnchor < width; xAnchor++) {
+                        const anchorSnapshotIndex = (yAnchor * width + xAnchor) * 4;
+                        if (originalDataSnapshot[anchorSnapshotIndex] < VERY_DARK_THRESHOLD_FOR_MASK_ANCHOR) {
+                            for (let dy = -darkProtectionRadius; dy <= darkProtectionRadius; dy++) {
+                                for (let dx = -darkProtectionRadius; dx <= darkProtectionRadius; dx++) {
+                                    const nx = xAnchor + dx;
+                                    const ny = yAnchor + dy;
+                                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                        const dist = Math.sqrt(dx * dx + dy * dy);
+                                        let protectionVal = 0.0;
+                                        if (dist <= darkProtectionRadius) {
+                                            protectionVal = 1.0 - (dist / darkProtectionRadius);
+                                        }
+                                        protectionVal = Math.max(0, protectionVal); 
+                                        const maskMapIndex = ny * width + nx;
+                                        protectionStrengthMask[maskMapIndex] = Math.max(protectionStrengthMask[maskMapIndex], protectionVal);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const pixelMapIndex = y * width + x; 
+                const imageDataIndex = pixelMapIndex * 4; 
+                
+                if (applyDarkProtectionMask && protectionStrengthMask) {
+                    const darkProtectionRadiusForCheck = Math.max(0, intBlurRadius + 2); 
+                    currentProtectionLevel = (darkProtectionRadiusForCheck > 0) ? protectionStrengthMask[pixelMapIndex] : 0.0;
+                } else {
+                    currentProtectionLevel = 0.0; 
+                }
+
+                for (let c = 0; c < 3; c++) { 
+                    const channelIndex = imageDataIndex + c;
+                    const originalPixel = originalDataSnapshot[channelIndex]; 
+                    const blurredPixel = blurredData[channelIndex]; 
+                    const diff = originalPixel - blurredPixel;
+
+                    if (Math.abs(diff) >= threshold) {
+                        let sharpeningAdjustment = strength * diff * (1.0 - currentProtectionLevel);
+                        
+                        if (sharpeningAdjustment > 0 && originalPixel > highlightProtectionStart) {
+                            let factor = (255.0 - originalPixel) / (255.0 - highlightProtectionStart);
+                            factor = Math.max(0, Math.min(1, factor)); 
+                            sharpeningAdjustment *= (factor * factor); 
+                        }
+                        data[channelIndex] = truncate(originalPixel + sharpeningAdjustment);
+                    } else {
+                        data[channelIndex] = originalDataSnapshot[channelIndex];
+                    }
+                }
+            }
+        }
+    }
+
+    // 已删除重复的applyCubicCLAHE实现，使用上面定义的标准CLAHE版本
 
     // ADD THIS FUNCTION (from script.js lines ~1875-1970)
     function removeVerticalArtifacts(data, width, height, strength) {
