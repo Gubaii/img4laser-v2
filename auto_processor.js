@@ -186,12 +186,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 originalImage.onload = function() {
                     // 显示原始图像
                     displayOriginalImage();
-                    // 启用分析按钮
+                    // 启用分析按钮（保留按钮功能以便需要时重新分析）
                     analyzeBtn.disabled = false;
                     
                     // 禁用Gamma调整控件直到图像被分析
                     gammaSlider.disabled = true;
                     resetGammaBtn.disabled = true;
+                    
+                    // 自动开始分析和优化
+                    setTimeout(() => {
+                        analyzeAndOptimize();
+                    }, 100); // 短暂延迟以确保UI更新
                 };
                 originalImage.src = e.target.result;
             };
