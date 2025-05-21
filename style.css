@@ -372,4 +372,32 @@ button:hover {
 .adjustment-info p {
     margin: 0;
     color: #444;
+}
+
+/* 选项设置行样式 */
+.setting-options-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.setting-option-item {
+    flex: 1;
+    min-width: 200px;
+    margin-bottom: 10px;
+}
+
+.setting-option-item label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.setting-option-item select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
 } 

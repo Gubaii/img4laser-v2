@@ -166,35 +166,39 @@
             <h2>1. 上传图像</h2>
             <input type="file" id="image-upload" accept="image/*">
             <div class="settings-section">
-                <h3>材料设置</h3>
-                <div class="setting-option">
-                    <label for="material-type">材料类型：</label>
-                    <select id="material-type">
-                        <option value="wood" selected>木材</option>
-                        <option value="metal">金属</option>
-                        <option value="plastic">塑料</option>
-                        <option value="vinyl">乙烯基</option>
-                        <option value="paper">纸张</option>
-                        <option value="silicone">硅胶</option>
-                        <option value="rubber">橡胶</option>
-                        <option value="leather">皮革</option>
-                        <option value="stone">石材</option>
-                        <option value="screen-printing">丝网印刷</option>
-                        <option value="other">其他</option>
-                    </select>
-                    <label for="material-color">材料颜色：</label>
-                    <select id="material-color">
-                        <option value="light" selected>浅色材料</option>
-                        <option value="dark">深色材料</option>
-                    </select>
-                </div>
-                <div class="setting-option">
-                    <label for="laser-type">激光器类型：</label>
-                    <select id="laser-type">
-                        <option value="co2" selected>二氧化碳激光器</option>
-                        <option value="blue">蓝光激光器</option>
-                        <option value="red">红光激光器</option>
-                    </select>
+                <h3>2. 选项设置</h3>
+                <div class="setting-options-row">
+                    <div class="setting-option-item">
+                        <label for="material-type">材料类型：</label>
+                        <select id="material-type">
+                            <option value="wood" selected>木材</option>
+                            <option value="metal">金属</option>
+                            <option value="plastic">塑料</option>
+                            <option value="vinyl">乙烯基</option>
+                            <option value="paper">纸张</option>
+                            <option value="silicone">硅胶</option>
+                            <option value="rubber">橡胶</option>
+                            <option value="leather">皮革</option>
+                            <option value="stone">石材</option>
+                            <option value="screen-printing">丝网印刷</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </div>
+                    <div class="setting-option-item">
+                        <label for="material-color">材料颜色：</label>
+                        <select id="material-color">
+                            <option value="light" selected>浅色材料</option>
+                            <option value="dark">深色材料</option>
+                        </select>
+                    </div>
+                    <div class="setting-option-item">
+                        <label for="laser-type">激光器类型：</label>
+                        <select id="laser-type">
+                            <option value="co2" selected>二氧化碳激光器</option>
+                            <option value="blue">蓝光激光器</option>
+                            <option value="red">红光激光器</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -212,7 +216,6 @@
         
         <div class="action-buttons">
             <button id="analyze-btn">分析并优化</button>
-            <button id="manual-edit-btn">手动微调</button>
             <button id="download-btn">下载优化图像</button>
         </div>
         
