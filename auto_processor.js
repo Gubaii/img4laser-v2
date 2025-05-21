@@ -58,7 +58,8 @@ document.addEventListener('DOMContentLoaded', function() {
     imageUpload.addEventListener('change', handleImageUpload);
     analyzeBtn.addEventListener('click', analyzeAndOptimize);
     downloadBtn.addEventListener('click', downloadProcessedImage);
-    manualEditBtn.addEventListener('click', redirectToManualEdit);
+    // 移除已删除按钮的事件监听
+    // manualEditBtn.addEventListener('click', redirectToManualEdit);
     materialTypeSelect.addEventListener('change', updateOptimization);
     materialColorSelect.addEventListener('change', updateOptimization);
     laserTypeSelect.addEventListener('change', updateOptimization);
@@ -67,6 +68,38 @@ document.addEventListener('DOMContentLoaded', function() {
     gammaSlider.addEventListener('input', updateGammaValue);
     resetGammaBtn.addEventListener('click', resetGamma);
     
+    // 创建加载指示器元素
+    function createLoadingIndicator() {
+        const loadingIndicator = document.createElement('div');
+        loadingIndicator.className = 'loading-indicator';
+        loadingIndicator.innerHTML = `
+            <div class="spinner"></div>
+            <div class="loading-text">处理中...</div>
+        `;
+        return loadingIndicator;
+    }
+    
+    // 显示加载状态
+    function showLoading(container) {
+        // 移除可能存在的旧加载指示器
+        const oldIndicator = document.querySelector('.loading-indicator');
+        if (oldIndicator) {
+            oldIndicator.remove();
+        }
+        
+        const loadingIndicator = createLoadingIndicator();
+        container.appendChild(loadingIndicator);
+        return loadingIndicator;
+    }
+    
+    // 隐藏加载状态
+    function hideLoading() {
+        const loadingIndicator = document.querySelector('.loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+    }
+    
     // 新增 - 更新Gamma值并应用到图像
     function updateGammaValue() {
         const gammaValue = parseFloat(gammaSlider.value);
@@ -74,16 +107,29 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 应用新的Gamma值到图像
         if (originalImageData && optimizedParams) {
-            // 复制优化参数，但更新Gamma值
-            const updatedParams = Object.assign({}, optimizedParams);
-            updatedParams.gamma = gammaValue;
+            // 显示加载指示器
+            const loadingIndicator = showLoading(processedPreview);
             
-            // 重新处理图像
-            processedImageData = processImage(originalImageData, updatedParams);
-            displayProcessedImage();
-            
-            // 更新显示的参数值
-            paramGamma.textContent = gammaValue.toFixed(2);
+            // 使用setTimeout让UI有时间更新
+            setTimeout(() => {
+                try {
+                    // 复制优化参数，但更新Gamma值
+                    const updatedParams = Object.assign({}, optimizedParams);
+                    updatedParams.gamma = gammaValue;
+                    
+                    // 重新处理图像
+                    processedImageData = processImage(originalImageData, updatedParams);
+                    displayProcessedImage();
+                    
+                    // 更新显示的参数值
+                    paramGamma.textContent = gammaValue.toFixed(2);
+                } catch (error) {
+                    console.error('Gamma值调整失败:', error);
+                } finally {
+                    // 隐藏加载指示器
+                    hideLoading();
+                }
+            }, 50);
         }
     }
     
@@ -94,16 +140,29 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 应用推荐的Gamma值到图像
         if (originalImageData && optimizedParams) {
-            // 复制优化参数，但重置Gamma值
-            const updatedParams = Object.assign({}, optimizedParams);
-            updatedParams.gamma = recommendedGamma;
+            // 显示加载指示器
+            const loadingIndicator = showLoading(processedPreview);
             
-            // 重新处理图像
-            processedImageData = processImage(originalImageData, updatedParams);
-            displayProcessedImage();
-            
-            // 更新显示的参数值
-            paramGamma.textContent = recommendedGamma.toFixed(2);
+            // 使用setTimeout让UI有时间更新
+            setTimeout(() => {
+                try {
+                    // 复制优化参数，但重置Gamma值
+                    const updatedParams = Object.assign({}, optimizedParams);
+                    updatedParams.gamma = recommendedGamma;
+                    
+                    // 重新处理图像
+                    processedImageData = processImage(originalImageData, updatedParams);
+                    displayProcessedImage();
+                    
+                    // 更新显示的参数值
+                    paramGamma.textContent = recommendedGamma.toFixed(2);
+                } catch (error) {
+                    console.error('重置Gamma值失败:', error);
+                } finally {
+                    // 隐藏加载指示器
+                    hideLoading();
+                }
+            }, 50);
         }
     }
     
@@ -166,43 +225,60 @@ document.addEventListener('DOMContentLoaded', function() {
     function analyzeAndOptimize() {
         if (!originalImage) return;
         
+        // 禁用分析按钮，防止重复点击
+        analyzeBtn.disabled = true;
+        
         // 显示加载状态
         imageTypeResult.textContent = "分析中...";
         
+        // 显示加载指示器
+        const loadingIndicator = showLoading(processedPreview);
+        
         // 使用 setTimeout 让 UI 能够更新
         setTimeout(() => {
-            // 1. 分析图像
-            imageStats = analyzeImage(originalImageData);
-            
-            // 2. 确定图像类型
-            detectedImageType = determineImageType(imageStats);
-            
-            // 3. 根据图像类型和材质选择优化参数
-            optimizedParams = getOptimizedParams(detectedImageType, materialTypeSelect.value, laserTypeSelect.value);
-            
-            // 保存推荐的Gamma值
-            recommendedGamma = optimizedParams.gamma;
-            
-            // 4. 应用参数进行图像处理
-            processedImageData = processImage(originalImageData, optimizedParams);
-            
-            // 5. 显示处理后的图像
-            displayProcessedImage();
-            
-            // 6. 更新分析结果显示
-            updateAnalysisDisplay();
-            
-            // 7. 绘制直方图
-            drawHistogram(histogramCanvas, originalImageData, processedImageData);
-            
-            // 8. 启用下载按钮
-            downloadBtn.disabled = false;
-            
-            // 9. 更新并启用Gamma调整控件
-            gammaSlider.value = recommendedGamma;
-            gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
-            gammaSlider.disabled = false;
-            resetGammaBtn.disabled = false;
+            try {
+                // 1. 分析图像
+                imageStats = analyzeImage(originalImageData);
+                
+                // 2. 确定图像类型
+                detectedImageType = determineImageType(imageStats);
+                
+                // 3. 根据图像类型和材质选择优化参数
+                optimizedParams = getOptimizedParams(detectedImageType, materialTypeSelect.value, laserTypeSelect.value);
+                
+                // 保存推荐的Gamma值
+                recommendedGamma = optimizedParams.gamma;
+                
+                // 4. 应用参数进行图像处理
+                processedImageData = processImage(originalImageData, optimizedParams);
+                
+                // 5. 显示处理后的图像
+                displayProcessedImage();
+                
+                // 6. 更新分析结果显示
+                updateAnalysisDisplay();
+                
+                // 7. 绘制直方图
+                drawHistogram(histogramCanvas, originalImageData, processedImageData);
+                
+                // 8. 启用下载按钮
+                downloadBtn.disabled = false;
+                
+                // 9. 更新并启用Gamma调整控件
+                gammaSlider.value = recommendedGamma;
+                gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
+                gammaSlider.disabled = false;
+                resetGammaBtn.disabled = false;
+            } catch (error) {
+                console.error('图像处理失败:', error);
+                imageTypeResult.textContent = "处理失败，请重试";
+            } finally {
+                // 隐藏加载指示器
+                hideLoading();
+                
+                // 重新启用分析按钮
+                analyzeBtn.disabled = false;
+            }
         }, 100);
     }
     
@@ -2340,32 +2416,49 @@ document.addEventListener('DOMContentLoaded', function() {
     // 当材质或激光功率变化时更新优化
     function updateOptimization() {
         if (imageStats && detectedImageType && originalImageData) { // Ensure all needed data is available
-            optimizedParams = getOptimizedParams(
-                detectedImageType,
-                materialTypeSelect.value,
-                laserTypeSelect.value
-            );
+            // 显示加载指示器
+            const loadingIndicator = showLoading(processedPreview);
             
-            // 保存推荐的Gamma值
-            recommendedGamma = optimizedParams.gamma;
-            
-            // Create a fresh copy of originalImageData for processing
-            const originalDataCopy = new ImageData(
-                new Uint8ClampedArray(originalImageData.data),
-                originalImageData.width,
-                originalImageData.height
-            );
+            // 使用setTimeout让UI有时间更新
+            setTimeout(() => {
+                try {
+                    // 获取新的优化参数
+                    optimizedParams = getOptimizedParams(
+                        detectedImageType,
+                        materialTypeSelect.value,
+                        laserTypeSelect.value
+                    );
+                    
+                    // 保存推荐的Gamma值
+                    recommendedGamma = optimizedParams.gamma;
+                    
+                    // Create a fresh copy of originalImageData for processing
+                    const originalDataCopy = new ImageData(
+                        new Uint8ClampedArray(originalImageData.data),
+                        originalImageData.width,
+                        originalImageData.height
+                    );
 
-            processedImageData = processImage(originalDataCopy, optimizedParams);
-            displayProcessedImage(); 
-            updateAnalysisDisplay(); 
-            if (histogramCanvas && originalImageData && processedImageData) { // Guard against null canvas/data
-                 drawHistogram(histogramCanvas, originalImageData, processedImageData);
-            }
-            
-            // 更新Gamma控件
-            gammaSlider.value = recommendedGamma;
-            gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
+                    // 处理图像
+                    processedImageData = processImage(originalDataCopy, optimizedParams);
+                    displayProcessedImage(); 
+                    updateAnalysisDisplay(); 
+                    
+                    // 更新直方图
+                    if (histogramCanvas && originalImageData && processedImageData) { // Guard against null canvas/data
+                        drawHistogram(histogramCanvas, originalImageData, processedImageData);
+                    }
+                    
+                    // 更新Gamma控件
+                    gammaSlider.value = recommendedGamma;
+                    gammaValueDisplay.textContent = recommendedGamma.toFixed(2);
+                } catch (error) {
+                    console.error('更新优化参数失败:', error);
+                } finally {
+                    // 隐藏加载指示器
+                    hideLoading();
+                }
+            }, 50);
         }
     }
 
