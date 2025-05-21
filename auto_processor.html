@@ -216,6 +216,19 @@
             <button id="download-btn">下载优化图像</button>
         </div>
         
+        <!-- 强度调整面板 - 移至此处 -->
+        <div class="adjustment-panel" id="gamma-adjustment-panel">
+            <h2>强度调整</h2>
+            <div class="slider-container">
+                <label for="gamma-slider">强度 (Gamma值): <span id="gamma-value-display">1.0</span></label>
+                <input type="range" id="gamma-slider" min="0.1" max="3.0" step="0.05" value="1.0" disabled>
+                <button id="reset-gamma-btn" disabled>重置为推荐值</button>
+            </div>
+            <div class="adjustment-info">
+                <p>调整强度可以影响图像的明暗对比。降低值会使图像变亮，提高值会使图像变暗。</p>
+            </div>
+        </div>
+        
         <div class="analysis-panel">
             <h2>图像分析结果</h2>
             <div id="image-type-container">
@@ -291,19 +304,6 @@
                 <div class="parameter-item">
                     <strong>USM锐化：</strong> <span id="param-usm">-</span>
                 </div>
-            </div>
-        </div>
-        
-        <!-- 新增强度调整面板 -->
-        <div class="adjustment-panel" id="gamma-adjustment-panel">
-            <h2>强度调整</h2>
-            <div class="slider-container">
-                <label for="gamma-slider">强度 (Gamma值): <span id="gamma-value-display">1.0</span></label>
-                <input type="range" id="gamma-slider" min="0.1" max="3.0" step="0.05" value="1.0" disabled>
-                <button id="reset-gamma-btn" disabled>重置为推荐值</button>
-            </div>
-            <div class="adjustment-info">
-                <p>调整强度可以影响图像的明暗对比。降低值会使图像变亮，提高值会使图像变暗。</p>
             </div>
         </div>
     </div>
