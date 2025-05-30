@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
             contrast: 100,         // 常规对比度 (限制在90-110)
             gamma: 1.0,            // 伽马校正 (0.6-3.0)
             claheClipLimit: 3.0,   // 三次差值局部均衡clip_limit (2-5)
-            claheTileSize: 128,     // 三次差值局部均衡tile_size (从64改为128)
+            claheTileSize: 176,     // 三次差值局部均衡tile_size (从128改为176)
             clarity: 25,           // 清晰度 (0-30)
             brightness: {          // 全局亮度
                 highlights: 0,     // 高光 (-100-100)
