@@ -213,13 +213,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- START ADDED SCALING LOGIC ---
         let newWidth = originalImage.width;
         let newHeight = originalImage.height;
-        const MAX_DIMENSION = 2048;
+        // 暂时注释掉2048像素限制
+        // const MAX_DIMENSION = 2048;
 
-        if (Math.max(originalImage.width, originalImage.height) > MAX_DIMENSION) {
-            const scaleFactor = MAX_DIMENSION / Math.max(originalImage.width, originalImage.height);
-            newWidth = Math.round(originalImage.width * scaleFactor);
-            newHeight = Math.round(originalImage.height * scaleFactor);
-        }
+        // if (Math.max(originalImage.width, originalImage.height) > MAX_DIMENSION) {
+        //     const scaleFactor = MAX_DIMENSION / Math.max(originalImage.width, originalImage.height);
+        //     newWidth = Math.round(originalImage.width * scaleFactor);
+        //     newHeight = Math.round(originalImage.height * scaleFactor);
+        // }
         // --- END ADDED SCALING LOGIC ---
 
         canvas.width = newWidth; // Use newWidth
@@ -3029,7 +3030,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = 'index.html'; // Assuming index.html can handle POSTed image data
+        form.action = 'index.html'; // 使用index.html作为主文件
         form.target = '_blank';
         
         const imageInput = document.createElement('input');
